@@ -26,12 +26,15 @@ app.post("/webhook", async (req, res) => {
       return res.status(200).json({ message: "Evento ignorado - sem record" });
     }
 
-    // Pega o estágio atual
-    const stage = record?.stage?.name || record?.stageName || "";
+    // Pega o estágio atual — Twenty envia como "QUALIFICADO" ou similar
+    const stage = record?.estagio || record?.stage?.name || record?.stageName || "";
     console.log("Estágio atual:", stage);
 
-    // Só dispara se for o estágio qualificado
-    if (!stage.toLowerCase().includes(QUALIFIED_STAGE.toLowerCase())) {
+    // Só dispara se for o estágio qualificado (compara sem acento e maiúsculas)
+    const stageNorm = stage.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const targetNorm = QUALIFIED_STAGE.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    if (!stageNorm.includes(targetNorm)) {
       return res.status(200).json({ message: `Estágio '${stage}' ignorado` });
     }
 
