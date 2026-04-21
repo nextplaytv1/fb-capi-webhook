@@ -1,0 +1,12 @@
+{
+  "name": "fb-capi-webhook",
+  "version": "1.0.0",
+  "description": "Webhook receiver for Twenty CRM -> Facebook CAPI",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
