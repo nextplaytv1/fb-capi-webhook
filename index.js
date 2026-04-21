@@ -7,6 +7,7 @@ app.use(express.json());
 const PIXEL_ID = process.env.PIXEL_ID;
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 const QUALIFIED_STAGE = process.env.QUALIFIED_STAGE || "Qualificado";
+const TEST_EVENT_CODE = process.env.TEST_EVENT_CODE || null;
 
 function hashData(value) {
   if (!value) return null;
@@ -24,11 +25,9 @@ app.post("/webhook", async (req, res) => {
       return res.status(200).json({ message: "Evento ignorado - sem record" });
     }
 
-    // Pega o estágio atual — Twenty envia como "QUALIFICADO"
     const stage = record?.estagio || record?.stage?.name || record?.stageName || "";
     console.log("Estágio atual:", stage);
 
-    // Compara sem acento e maiúsculas
     const stageNorm = stage.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const targetNorm = QUALIFIED_STAGE.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -36,33 +35,34 @@ app.post("/webhook", async (req, res) => {
       return res.status(200).json({ message: `Estágio '${stage}' ignorado` });
     }
 
-    // Monta os dados do lead (formato Twenty)
-    const email = record?.emails?.primaryEmail || null;
-    const phone = record?.phones?.primaryPhoneNumber || null;
+    const phone = record?.phones?.primaryPhoneNumber
+      ? record.phones.primaryPhoneCallingCode.replace("+", "") + record.phones.primaryPhoneNumber
+      : null;
     const firstName = record?.name?.firstName || null;
     const lastName = record?.name?.lastName || null;
 
     console.log("Lead qualificado detectado! Enviando para o Facebook...");
 
-    // Monta user_data apenas com campos preenchidos
     const userData = {};
-    if (email) userData.em = [hashData(email)];
     if (phone) userData.ph = [hashData(phone)];
     if (firstName) userData.fn = [hashData(firstName)];
     if (lastName) userData.ln = [hashData(lastName)];
 
-    const eventData = {
-      data: [
-        {
-          event_name: "QualifiedLead",
-          event_time: Math.floor(Date.now() / 1000),
-          action_source: "system_generated",
-          user_data: userData,
-        },
-      ],
+    const eventPayload = {
+      event_name: "QualifiedLead",
+      event_time: Math.floor(Date.now() / 1000),
+      action_source: "system_generated",
+      user_data: userData,
     };
 
-    // Envia para o Facebook
+    const eventData = { data: [eventPayload] };
+
+    // Inclui test_event_code se estiver configurado
+    if (TEST_EVENT_CODE) {
+      eventData.test_event_code = TEST_EVENT_CODE;
+      console.log("Usando test_event_code:", TEST_EVENT_CODE);
+    }
+
     const url = `https://graph.facebook.com/v19.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
     const response = await fetch(url, {
       method: "POST",
@@ -94,4 +94,5 @@ app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
   console.log(`Pixel ID: ${PIXEL_ID}`);
   console.log(`Estágio monitorado: ${QUALIFIED_STAGE}`);
+  console.log(`Test Event Code: ${TEST_EVENT_CODE || "não configurado"}`);
 });
